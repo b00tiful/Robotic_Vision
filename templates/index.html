@@ -1,0 +1,1349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Processing Monitor</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js" 
+            onload="console.log('ECharts loaded successfully')" 
+            onerror="console.error('Failed to load ECharts from CDN'); loadLocalECharts();"></script>
+    <script>
+        function loadLocalECharts() {
+            const localScript = document.createElement('script');
+            localScript.src = '/static/echarts.min.js';
+            localScript.onload = () => console.log('Local ECharts loaded');
+            localScript.onerror = () => console.error('Failed to load local ECharts');
+            document.head.appendChild(localScript);
+        }
+    </script>
+    <style>
+        :root {
+            --primary-color: #2d8659;
+            --secondary-color: #266d47;
+            --bg-color: #f0f5f2;
+            --card-bg: #ffffff;
+            --text-color: #1a3c34;
+            --border-color: #d9e6e0;
+            --success-color: #1fc96e;
+            --warning-color: #f4a261;
+            --danger-color: #e63946;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            transition: all 0.3s ease;
+        }
+
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo svg {
+            width: 24px;
+            height: 24px;
+            fill: white;
+        }
+
+        .system-status {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-size: 0.9rem;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: var(--success-color);
+        }
+
+        .status-dot.warning {
+            background-color: var(--warning-color);
+        }
+
+        .status-dot.offline {
+            background-color: var(--danger-color);
+        }
+
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 30px;
+            display: flex;
+            gap: 20px;
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 15px 30px;
+            border-radius: 50px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            z-index: 50;
+        }
+
+        .control-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .control-btn:hover {
+            background-color: var(--secondary-color);
+            transform: translateY(-2px);
+        }
+
+        .control-btn svg {
+            width: 18px;
+            height: 18px;
+            fill: white;
+        }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .modal-content {
+            background-color: var(--card-bg);
+            width: 80%;
+            height: 80%;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transform: scale(0.9);
+            transition: transform 0.3s ease;
+        }
+
+        .modal.active .modal-content {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-color);
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            transition: background-color 0.2s ease;
+        }
+
+        .close-btn:hover {
+            background-color: var(--border-color);
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background-color: var(--card-bg);
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            padding: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        .stat-title {
+            font-size: 0.9rem;
+            color: #7f8c8d;
+            margin-bottom: 10px;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .stat-trend {
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .trend-up {
+            color: var(--success-color);
+        }
+
+        .trend-down {
+            color: var(--danger-color);
+        }
+
+        .video-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #000;
+            position: relative;
+        }
+
+        .video-feed {
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        .video-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 0.9rem;
+        }
+
+        .charts-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 20px;
+            height: 100%;
+        }
+
+        .chart-wrapper {
+            background-color: var(--card-bg);
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            height: 300px;
+            position: relative;
+        }
+
+        .chart-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .settings-form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px 15px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            font-size: 1rem;
+            transition: border-color 0.2s ease;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .slider {
+            appearance: none;
+            width: 100%;
+            height: 10px;
+            background: var(--border-color);
+            outline: none;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--primary-color);
+            cursor: pointer;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+        }
+
+        .slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: var(--primary-color);
+            cursor: pointer;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+        }
+
+        .slider:hover {
+            opacity: 1;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .slider-value {
+            width: 50px;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .setting-actions {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 6px;
+            border: none;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--secondary-color);
+        }
+
+        .btn-secondary {
+            background-color: var(--border-color);
+            color: var(--text-color);
+        }
+
+        .btn-secondary:hover {
+            background-color: #c8d6cf;
+        }
+
+        @media (max-width: 768px) {
+            .controls {
+                flex-wrap: wrap;
+                justify-content: center;
+                border-radius: 15px;
+                width: 90%;
+                left: 5%;
+            }
+
+            .modal-content {
+                width: 95%;
+                height: 90%;
+            }
+
+            .charts-container {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <svg viewBox="0 0 24 24">
+                <path d="M4,4H20V20H4V4M6,6V18H18V6H6Z"/>
+                <path d="M8,8H16V12H8V8Z"/>
+                <path d="M8,14H10V16H8V14Z"/>
+                <path d="M12,14H16V16H12V14Z"/>
+            </svg>
+            Real-Time Video Processing System            
+        </div>
+        <div class="system-status">
+            <div class="status-indicator">
+                <div id="local-status" class="status-dot"></div>
+                <span>Local Processing</span>
+            </div>
+            <div class="status-indicator">
+                <div id="server-status" class="status-dot"></div>
+                <span>Server Processing</span>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="welcome-screen">
+            <h1>Welcome to Real-Time Video Processing Control Center</h1>
+            <p>Use the panel below to access and manage various monitoring features</p>
+        </div>
+
+        <div class="controls">
+            <button id="statsBtn" class="control-btn">
+                <svg viewBox="0 0 24 24">
+                    <path d="M16,11.78L20.24,4.45L21.97,5.45L16.74,14.5L10.23,10.75L5.46,19H22V21H2V3H4V17.54L9.5,8L16,11.78Z"/>
+                </svg>
+                Statistics
+            </button>
+            <button id="chartsBtn" class="control-btn">
+                <svg viewBox="0 0 24 24">
+                    <path d="M22,21H2V3H4V19H22V21Z"/>
+                    <path d="M5,17L8.5,12.5L12.5,16L19,8L17.5,6.5L12.5,13L8.5,9.5L5,14L5,17Z"/>
+                </svg>
+                Real-time Charts
+            </button>
+            <button id="videoBtn" class="control-btn">
+                <svg viewBox="0 0 24 24">
+                    <path d="M17,10.5V7A1,1 0 0,0 16,6H4A1,1 0 0,0 3,7V17A1,1 0 0,0 4,18H16A1,1 0 0,0 17,17V13.5L21,17.5V6.5L17,10.5Z"/>
+                </svg>
+                Video Stream
+            </button>
+            <button id="settingsBtn" class="control-btn">
+                <svg viewBox="0 0 24 24">
+                    <path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/>
+                </svg>
+                Settings
+            </button>
+            <button id="logsBtn" class="control-btn">
+                <svg viewBox="0 0 24 24">
+                    <path d="M21 11.5v-1c0-.8-.7-1.5-1.5-1.5H6v-1h13.5c1.4 0 2.5 1.1 2.5 2.5v1h-1zm-18 0v1h13.5c.8 0 1.5.7 1.5 1.5v1h1v-1c0-1.4-1.1-2.5-2.5-2.5H3zm9-9c1.4 0 2.5 1.1 2.5 2.5v1h-1v-1c0-.8-.7-1.5-1.5-1.5H6v-1h6zm0 18c-1.4 0-2.5-1.1-2.5-2.5v-1h1v1c0 .8.7 1.5 1.5 1.5h6v1h-6z"/>
+                </svg>
+                Logs
+            </button>
+        </div>
+    </main>
+
+    <!-- Statistics Modal -->
+    <div id="statsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">System Statistics</h2>
+                <button class="btn btn-primary" id="exportStatsBtn" style="margin-left: auto; margin-right: 10px; padding: 5px 10px; font-size: 0.8rem;">Export</button>
+                <button class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-title">FPS</div>
+                        <div id="fps-value" class="stat-value">0</div>
+                        <div id="fps-trend" class="stat-trend"></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-title">CPU Load</div>
+                        <div id="cpu-value" class="stat-value">0%</div>
+                        <div id="cpu-trend" class="stat-trend"></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-title">Detected Objects</div>
+                        <div id="objects-value" class="stat-value">0</div>
+                        <div id="objects-trend" class="stat-trend"></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-title">Processing Mode</div>
+                        <div id="mode-value" class="stat-value">Local</div>
+                        <div class="stat-trend">Current active mode</div>
+                    </div>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-title">Frame Size</div>
+                        <div id="frame-size" class="stat-value">640x480</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-title">ROI Size</div>
+                        <div id="roi-size" class="stat-value">320x240</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-title">Frame Skip</div>
+                        <div id="frame-skip" class="stat-value">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-title">Uptime</div>
+                        <div id="uptime" class="stat-value">00:00:00</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Modal -->
+    <div id="chartsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Real-time Performance Charts</h2>
+                <button class="btn btn-secondary" id="resetStatsBtn" style="margin-left: auto; margin-right: 10px; padding: 5px 10px; font-size: 0.8rem;">Reset Stats</button>
+                <button class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="charts-container">
+                    <div class="chart-wrapper">
+                        <div class="chart-title">FPS Over Time</div>
+                        <div id="fpsChart" style="width: 100%; height: 250px;"></div>
+                    </div>
+                    <div class="chart-wrapper">
+                        <div class="chart-title">CPU Usage Over Time</div>
+                        <div id="cpuChart" style="width: 100%; height: 250px;"></div>
+                    </div>
+                    <div class="chart-wrapper">
+                        <div class="chart-title">Detected Objects Over Time</div>
+                        <div id="objectsChart" style="width: 100%; height: 250px;"></div>
+                    </div>
+                    <div class="chart-wrapper">
+                        <div class="chart-title">Processing Mode Distribution</div>
+                        <div id="modeChart" style="width: 100%; height: 250px;"></div>
+                    </div>
+                    <div class="chart-wrapper">
+                        <div class="chart-title">CMAB Q-Values Over Time</div>
+                        <div id="cmabChart" style="width: 100%; height: 250px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Video Stream Modal -->
+    <div id="videoModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Live Video Stream</h2>
+                <button class="btn btn-primary" id="screenshotBtn" style="margin-left: auto; margin-right: 10px; padding: 5px 10px; font-size: 0.8rem;">Take Screenshot</button>
+                <button class="btn btn-secondary" id="fullscreenBtn" style="margin-right: 10px; padding: 5px 10px; font-size: 0.8rem;">Toggle Fullscreen</button>
+                <button class="close-btn">×</button>
+            </div>
+            <div class="modal-body" style="padding: 0;">
+                <div class="video-container">
+                    <img id="videoFeed" class="video-feed" src="/video_feed" alt="Video stream unavailable">
+                    <div class="video-overlay">
+                        <div>FPS: <span id="video-fps">0</span></div>
+                        <div>Objects: <span id="video-objects">0</span></div>
+                        <div>Mode: <span id="video-mode">Local</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">System Settings</h2>
+                <button class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="settingsForm" class="settings-form">
+                    <div class="form-group">
+                        <label class="form-label">FPS Limit</label>
+                        <div class="slider-container">
+                            <input type="range" id="fpsLimit" class="slider form-control" min="1" max="60" value="15">
+                            <span id="fpsLimitValue" class="slider-value">15</span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Frame Skip</label>
+                        <div class="slider-container">
+                            <input type="range" id="frameSkip" class="slider form-control" min="0" max="10" value="0">
+                            <span id="frameSkipValue" class="slider-value">0</span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">ROI Width</label>
+                        <div class="slider-container">
+                            <input type="range" id="roiWidth" class="slider form-control" min="100" max="1280" step="10" value="640">
+                            <span id="roiWidthValue" class="slider-value">640</span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">ROI Height</label>
+                        <div class="slider-container">
+                            <input type="range" id="roiHeight" class="slider form-control" min="100" max="720" step="10" value="480">
+                            <span id="roiHeightValue" class="slider-value">480</span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Auto Mode Switch</label>
+                        <select id="autoModeSwitch" class="form-control">
+                            <option value="enabled">Enabled</option>
+                            <option value="disabled">Disabled</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">CPU Threshold (%)</label>
+                        <div class="slider-container">
+                            <input type="range" id="cpuThreshold" class="slider form-control" min="0" max="100" value="85">
+                            <span id="cpuThresholdValue" class="slider-value">85</span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Processing Mode</label>
+                        <select id="processingMode" class="form-control">
+                            <option value="auto">Auto</option>
+                            <option value="local">Force Local</option>
+                            <option value="server">Force Server</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Video Quality</label>
+                        <select id="videoQuality" class="form-control">
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                        </select>
+                    </div>
+                    <div class="setting-actions">
+                        <button type="button" id="resetSettings" class="btn btn-secondary">Reset to Default</button>
+                        <button type="submit" class="btn btn-primary">Save Settings</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const statsBtn = document.getElementById('statsBtn');
+        const chartsBtn = document.getElementById('chartsBtn');
+        const videoBtn = document.getElementById('videoBtn');
+        const settingsBtn = document.getElementById('settingsBtn');
+        const logsBtn = document.getElementById('logsBtn');
+
+        const statsModal = document.getElementById('statsModal');
+        const chartsModal = document.getElementById('chartsModal');
+        const videoModal = document.getElementById('videoModal');
+        const settingsModal = document.getElementById('settingsModal');
+
+        const closeBtns = document.querySelectorAll('.close-btn');
+
+        let fpsChart, cpuChart, objectsChart, modeChart, cmabChart;
+        let isDarkMode = false;
+
+        // Modal management
+        function openModal(modal) {
+            closeAllModals();
+            modal.classList.add('active');
+        }
+
+        function closeAllModals() {
+            document.querySelectorAll('.modal').forEach(modal => modal.classList.remove('active'));
+        }
+
+        // Event listeners for buttons
+        statsBtn.addEventListener('click', () => openModal(statsModal));
+        chartsBtn.addEventListener('click', () => {
+            openModal(chartsModal);
+            if (!fpsChart) {
+                console.log('Initializing charts...');
+                requestAnimationFrame(() => {
+                    try {
+                        initCharts();
+                        addSaveButtonsToCharts();
+                        console.log('Charts initialized successfully');
+                    } catch (error) {
+                        console.error('Error initializing charts:', error);
+                        showNotification('Failed to initialize charts');
+                    }
+                });
+            }
+        });
+        videoBtn.addEventListener('click', () => {
+            openModal(videoModal);
+            startVideoStream();
+        });
+        settingsBtn.addEventListener('click', () => {
+            openModal(settingsModal);
+            loadSettings();
+        });
+        logsBtn.addEventListener('click', showLogs);
+
+        closeBtns.forEach(btn => btn.addEventListener('click', closeAllModals));
+        window.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal')) closeAllModals();
+        });
+
+        // Fetch and update stats
+        function fetchStats() {
+            fetch('/stats')
+                .then(response => {
+                    if (!response.ok) throw new Error('Network response was not ok');
+                    return response.json();
+                })
+                .then(data => {
+                    updateStats(data);
+                    if (chartsModal.classList.contains('active')) updateCharts(data);
+                    if (videoModal.classList.contains('active')) updateVideoOverlay(data);
+                })
+                .catch(error => {
+                    console.error('Error fetching stats:', error);
+                    showNotification('Failed to fetch stats');
+                });
+        }
+
+        function updateStats(data) {
+            document.getElementById('local-status').className = data.mode === 'local' ? 'status-dot' : 'status-dot offline';
+            document.getElementById('server-status').className = data.mode === 'server' ? 'status-dot' : 'status-dot offline';
+
+            document.getElementById('fps-value').textContent = data.fps.toFixed(1);
+            document.getElementById('cpu-value').textContent = `${data.cpu.toFixed(1)}%`;
+            document.getElementById('objects-value').textContent = data.objects;
+            document.getElementById('mode-value').textContent = data.mode === 'local' ? 'Local' : 'Server';
+            document.getElementById('frame-size').textContent = data.frame_size;
+            document.getElementById('roi-size').textContent = data.roi_size;
+            document.getElementById('frame-skip').textContent = data.frame_skip;
+
+            const uptime = data.uptime || 0;
+            const hours = Math.floor(uptime / 3600);
+            const minutes = Math.floor((uptime % 3600) / 60);
+            const seconds = uptime % 60;
+            document.getElementById('uptime').textContent = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+            updateTrendIndicator('fps', data.fps, 15);
+            updateTrendIndicator('cpu', data.cpu, 50);
+            updateTrendIndicator('objects', data.objects, 3);
+        }
+
+        function updateTrendIndicator(metric, value, baseline) {
+            const trendElement = document.getElementById(`${metric}-trend`);
+            const difference = value - baseline;
+
+            if (Math.abs(difference) < 0.5) {
+                trendElement.className = 'stat-trend';
+                trendElement.innerHTML = 'Stable';
+                return;
+            }
+
+            trendElement.className = difference > 0 ? 'stat-trend trend-up' : 'stat-trend trend-down';
+            trendElement.innerHTML = difference > 0
+                ? `<span>↑</span> ${difference.toFixed(1)} ${metric === 'cpu' ? '%' : ''} above baseline`
+                : `<span>↓</span> ${Math.abs(difference).toFixed(1)} ${metric === 'cpu' ? '%' : ''} below baseline`;
+        }
+
+        // Chart initialization
+        function initCharts() {
+            if (typeof echarts === 'undefined') {
+                console.error('ECharts is not loaded');
+                return;
+            }
+
+            const timeLabels = Array(20).fill('').map((_, i) => `-${19-i}s`);
+            const emptyData = Array(20).fill(0);
+
+            fpsChart = echarts.init(document.getElementById('fpsChart'));
+            fpsChart.setOption({
+                title: { show: false },
+                tooltip: { trigger: 'axis' },
+                xAxis: { type: 'category', data: timeLabels },
+                yAxis: { type: 'value', min: 0, max: 60 }, // Updated max to match new FPS range
+                series: [{
+                    name: 'FPS',
+                    type: 'line',
+                    data: emptyData,
+                    smooth: true,
+                    areaStyle: { opacity: 0.2 },
+                    lineStyle: { color: '#2d8659' },
+                    itemStyle: { color: '#2d8659' }
+                }],
+                animationDuration: 500
+            });
+
+            cpuChart = echarts.init(document.getElementById('cpuChart'));
+            cpuChart.setOption({
+                title: { show: false },
+                tooltip: { trigger: 'axis' },
+                xAxis: { type: 'category', data: timeLabels },
+                yAxis: { type: 'value', min: 0, max: 100 },
+                series: [{
+                    name: 'CPU Usage (%)',
+                    type: 'line',
+                    data: emptyData,
+                    smooth: true,
+                    areaStyle: { opacity: 0.2 },
+                    lineStyle: { color: '#e63946' },
+                    itemStyle: { color: '#e63946' }
+                }],
+                animationDuration: 500
+            });
+
+            objectsChart = echarts.init(document.getElementById('objectsChart'));
+            objectsChart.setOption({
+                title: { show: false },
+                tooltip: { trigger: 'axis' },
+                xAxis: { type: 'category', data: timeLabels },
+                yAxis: { type: 'value', min: 0, max: 5 },
+                series: [{
+                    name: 'Detected Objects',
+                    type: 'line',
+                    data: emptyData,
+                    smooth: true,
+                    areaStyle: { opacity: 0.2 },
+                    lineStyle: { color: '#38a169' },
+                    itemStyle: { color: '#38a169' }
+                }],
+                animationDuration: 500
+            });
+
+            modeChart = echarts.init(document.getElementById('modeChart'));
+            modeChart.setOption({
+                title: { show: false },
+                tooltip: { trigger: 'item' },
+                legend: { bottom: '0%', orient: 'horizontal' },
+                series: [{
+                    name: 'Processing Mode',
+                    type: 'pie',
+                    radius: '50%',
+                    data: [
+                        { value: 100, name: 'Local Processing' },
+                        { value: 0, name: 'Server Processing' }
+                    ],
+                    itemStyle: {
+                        color: params => ['#4da87a', '#6b7280'][params.dataIndex]
+                    },
+                    emphasis: { itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0, 0, 0, 0.5)' } }
+                }],
+                animationDuration: 500
+            });
+
+            cmabChart = echarts.init(document.getElementById('cmabChart'));
+            cmabChart.setOption({
+                title: { show: false },
+                tooltip: { trigger: 'axis' },
+                legend: { bottom: '0%' },
+                xAxis: { type: 'category', data: timeLabels },
+                yAxis: { type: 'value', min: 0, max: 5 },
+                series: [
+                    { name: 'Low Resolution', type: 'line', data: emptyData, smooth: true, lineStyle: { color: '#f4a261' } },
+                    { name: 'Medium Resolution', type: 'line', data: emptyData, smooth: true, lineStyle: { color: '#4da87a' } },
+                    { name: 'High Resolution', type: 'line', data: emptyData, smooth: true, lineStyle: { color: '#68b38b' } }
+                ],
+                animationDuration: 500
+            });
+        }
+
+        function updateCharts(data) {
+            if (!fpsChart || !cpuChart || !objectsChart || !modeChart || !cmabChart) return;
+
+            let fpsData = fpsChart.getOption().series[0].data;
+            fpsData.shift();
+            fpsData.push(data.fps);
+            fpsChart.setOption({ series: [{ data: fpsData }] }, { notMerge: false });
+
+            let cpuData = cpuChart.getOption().series[0].data;
+            cpuData.shift();
+            cpuData.push(data.cpu);
+            cpuChart.setOption({ series: [{ data: cpuData }] }, { notMerge: false });
+
+            let objectsData = objectsChart.getOption().series[0].data;
+            objectsData.shift();
+            objectsData.push(data.objects);
+            objectsChart.setOption({ series: [{ data: objectsData }] }, { notMerge: false });
+
+            let modeData = modeChart.getOption().series[0].data;
+            if (data.mode === 'local') modeData[0].value = Math.min(modeData[0].value + 1, 100);
+            else modeData[1].value = Math.min(modeData[1].value + 1, 100);
+            const total = modeData[0].value + modeData[1].value;
+            modeChart.setOption({
+                series: [{
+                    data: [
+                        { value: modeData[0].value / total * 100, name: 'Local Processing' },
+                        { value: modeData[1].value / total * 100, name: 'Server Processing' }
+                    ]
+                }]
+            }, { notMerge: false });
+
+            let cmabData = cmabChart.getOption().series;
+            cmabData[0].data.shift();
+            cmabData[0].data.push(data.cmab_q_values?.low_res || 0);
+            cmabData[1].data.shift();
+            cmabData[1].data.push(data.cmab_q_values?.medium_res || 0);
+            cmabData[2].data.shift();
+            cmabData[2].data.push(data.cmab_q_values?.high_res || 0);
+            cmabChart.setOption({ series: cmabData }, { notMerge: false });
+        }
+
+        // Video stream
+        function startVideoStream() {
+            const videoFeed = document.getElementById('videoFeed');
+            videoFeed.src = '/video_feed?_' + Date.now();
+            videoFeed.onerror = () => showNotification('Video stream unavailable');
+        }
+
+        function updateVideoOverlay(data) {
+            document.getElementById('video-fps').textContent = data.fps.toFixed(1);
+            document.getElementById('video-objects').textContent = data.objects;
+            document.getElementById('video-mode').textContent = data.mode === 'local' ? 'Local' : 'Server';
+        }
+
+        // Settings
+        const settingsForm = document.getElementById('settingsForm');
+        const fpsLimit = document.getElementById('fpsLimit');
+        const fpsLimitValue = document.getElementById('fpsLimitValue');
+        const frameSkip = document.getElementById('frameSkip');
+        const frameSkipValue = document.getElementById('frameSkipValue');
+        const roiWidth = document.getElementById('roiWidth');
+        const roiWidthValue = document.getElementById('roiWidthValue');
+        const roiHeight = document.getElementById('roiHeight');
+        const roiHeightValue = document.getElementById('roiHeightValue');
+        const cpuThreshold = document.getElementById('cpuThreshold');
+        const cpuThresholdValue = document.getElementById('cpuThresholdValue');
+        const resetSettings = document.getElementById('resetSettings');
+
+        fpsLimit.addEventListener('input', () => fpsLimitValue.textContent = fpsLimit.value);
+        frameSkip.addEventListener('input', () => frameSkipValue.textContent = frameSkip.value);
+        roiWidth.addEventListener('input', () => roiWidthValue.textContent = roiWidth.value);
+        roiHeight.addEventListener('input', () => roiHeightValue.textContent = roiHeight.value);
+        cpuThreshold.addEventListener('input', () => cpuThresholdValue.textContent = cpuThreshold.value);
+
+        function loadSettings() {
+            fetch('/settings')
+                .then(response => response.json())
+                .then(data => {
+                    fpsLimit.value = data.fps_limit;
+                    fpsLimitValue.textContent = data.fps_limit;
+                    frameSkip.value = data.frame_skip;
+                    frameSkipValue.textContent = data.frame_skip;
+                    roiWidth.value = data.roi_width;
+                    roiWidthValue.textContent = data.roi_width;
+                    roiHeight.value = data.roi_height;
+                    roiHeightValue.textContent = data.roi_height;
+                    cpuThreshold.value = data.cpu_threshold;
+                    cpuThresholdValue.textContent = data.cpu_threshold;
+                    document.getElementById('autoModeSwitch').value = data.auto_mode_switch;
+                    document.getElementById('processingMode').value = data.processing_mode;
+                    document.getElementById('videoQuality').value = data.video_quality;
+                })
+                .catch(error => {
+                    console.error('Error loading settings:', error);
+                    showNotification('Failed to load settings');
+                });
+        }
+
+        settingsForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const settingsData = {
+                fps_limit: parseInt(fpsLimit.value),
+                frame_skip: parseInt(frameSkip.value),
+                roi_width: parseInt(roiWidth.value),
+                roi_height: parseInt(roiHeight.value),
+                auto_mode_switch: document.getElementById('autoModeSwitch').value,
+                cpu_threshold: parseInt(cpuThreshold.value),
+                processing_mode: document.getElementById('processingMode').value,
+                video_quality: document.getElementById('videoQuality').value
+            };
+            fetch('/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settingsData)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    showNotification('Settings saved successfully!');
+                    fetchStats();
+                    closeAllModals();
+                })
+                .catch(error => {
+                    console.error('Error saving settings:', error);
+                    showNotification('Failed to save settings');
+                });
+        });
+
+        resetSettings.addEventListener('click', () => {
+            fpsLimit.value = 15;
+            fpsLimitValue.textContent = 15;
+            frameSkip.value = 0;
+            frameSkipValue.textContent = 0;
+            roiWidth.value = 640;
+            roiWidthValue.textContent = 640;
+            roiHeight.value = 480;
+            roiHeightValue.textContent = 480;
+            cpuThreshold.value = 85;
+            cpuThresholdValue.textContent = 85;
+            document.getElementById('autoModeSwitch').value = 'enabled';
+            document.getElementById('processingMode').value = 'auto';
+            document.getElementById('videoQuality').value = 'medium';
+        });
+
+        // Export stats
+        document.getElementById('exportStatsBtn').addEventListener('click', () => {
+            fetch('/export_stats')
+                .then(response => response.json())
+                .then(data => {
+                    const dataStr = JSON.stringify(data, null, 2);
+                    const blob = new Blob([dataStr], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = url;
+                    downloadLink.download = `stats-${new Date().toISOString()}.json`;
+                    document.body.appendChild(downloadLink);
+                    downloadLink.click();
+                    document.body.removeChild(downloadLink);
+                    URL.revokeObjectURL(url);
+                    showNotification('Statistics exported');
+                })
+                .catch(error => {
+                    console.error('Error exporting stats:', error);
+                    showNotification('Failed to export stats');
+                });
+        });
+
+        // Screenshot
+        document.getElementById('screenshotBtn').addEventListener('click', () => {
+            const videoFeed = document.getElementById('videoFeed');
+            const canvas = document.createElement('canvas');
+            canvas.width = videoFeed.naturalWidth || 640;
+            canvas.height = videoFeed.naturalHeight || 480;
+            canvas.getContext('2d').drawImage(videoFeed, 0, 0, canvas.width, canvas.height);
+            const url = canvas.toDataURL('image/png');
+            const downloadLink = document.createElement('a');
+            downloadLink.href = url;
+            downloadLink.download = `screenshot-${new Date().toISOString()}.png`;
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+            showNotification('Screenshot saved');
+        });
+
+        // Fullscreen
+        let isFullscreen = false;
+        document.getElementById('fullscreenBtn').addEventListener('click', () => {
+            const videoContainer = document.querySelector('.video-container');
+            if (!isFullscreen) {
+                videoContainer.requestFullscreen?.() || videoContainer.webkitRequestFullscreen?.() || videoContainer.msRequestFullscreen?.();
+            } else {
+                document.exitFullscreen?.() || document.webkitExitFullscreen?.() || document.msExitFullscreen?.();
+            }
+            isFullscreen = !isFullscreen;
+        });
+        document.addEventListener('fullscreenchange', () => isFullscreen = !!document.fullscreenElement);
+
+        // Reset stats
+        document.getElementById('resetStatsBtn').addEventListener('click', () => {
+            if (confirm('Reset all statistics?')) {
+                if (fpsChart) {
+                    fpsChart.setOption({ series: [{ data: Array(20).fill(0) }] });
+                    cpuChart.setOption({ series: [{ data: Array(20).fill(0) }] });
+                    objectsChart.setOption({ series: [{ data: Array(20).fill(0) }] });
+                    modeChart.setOption({
+                        series: [{
+                            data: [
+                                { value: 0, name: 'Local Processing' },
+                                { value: 0, name: 'Server Processing' }
+                            ]
+                        }]
+                    });
+                    cmabChart.setOption({
+                        series: [
+                            { data: Array(20).fill(0) },
+                            { data: Array(20).fill(0) },
+                            { data: Array(20).fill(0) }
+                        ]
+                    });
+                    showNotification('Statistics reset');
+                }
+            }
+        });
+
+        // Save charts
+        function addSaveButtonsToCharts() {
+            const chartWrappers = document.querySelectorAll('.chart-wrapper');
+            chartWrappers.forEach((wrapper, index) => {
+                if (wrapper.querySelector('.save-chart-btn')) return;
+                const saveBtn = document.createElement('button');
+                saveBtn.className = 'btn btn-primary save-chart-btn';
+                saveBtn.style.position = 'absolute';
+                saveBtn.style.top = '10px';
+                saveBtn.style.right = '10px';
+                saveBtn.style.padding = '5px 10px';
+                saveBtn.style.fontSize = '0.8rem';
+                saveBtn.textContent = 'Save';
+                saveBtn.addEventListener('click', () => {
+                    const charts = [fpsChart, cpuChart, objectsChart, modeChart, cmabChart];
+                    const chart = charts[index];
+                    const url = chart.getDataURL({
+                        type: 'png',
+                        pixelRatio: 2,
+                        backgroundColor: isDarkMode ? '#223a33' : '#ffffff'
+                    });
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = url;
+                    downloadLink.download = `${chart.getDom().id}-${new Date().toISOString()}.png`;
+                    document.body.appendChild(downloadLink);
+                    downloadLink.click();
+                    document.body.removeChild(downloadLink);
+                    showNotification('Chart saved');
+                });
+                wrapper.appendChild(saveBtn);
+            });
+        }
+
+        // Dark mode
+        const darkModeToggle = document.createElement('button');
+        darkModeToggle.className = 'control-btn';
+        darkModeToggle.innerHTML = `<svg viewBox="0 0 24 24"><path d="M12,18C11.11,18 10.26,17.8 9.5,17.45C11.56,16.5 13,14.42 13,12C13,9.58 11.56,7.5 9.5,6.55C10.26,6.2 11.11,6 12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18M20,8.69V4H15.31L12,0.69L8.69,4H4V8.69L0.69,12L4,15.31V20H8.69L12,23.31L15.31,20H20V15.31L23.31,12L20,8.69Z"/></svg> Theme`;
+        document.querySelector('.system-status').appendChild(darkModeToggle);
+
+        function toggleDarkMode() {
+            isDarkMode = !isDarkMode;
+            document.documentElement.style.setProperty('--bg-color', isDarkMode ? '#1a2e28' : '#f0f5f2');
+            document.documentElement.style.setProperty('--card-bg', isDarkMode ? '#223a33' : '#ffffff');
+            document.documentElement.style.setProperty('--text-color', isDarkMode ? '#d4e6de' : '#1a3c34');
+            document.documentElement.style.setProperty('--border-color', isDarkMode ? '#355047' : '#d9e6e0');
+            document.documentElement.style.setProperty('--primary-color', isDarkMode ? '#4da87a' : '#2d8659');
+            document.documentElement.style.setProperty('--secondary-color', isDarkMode ? '#2d8659' : '#266d47');
+
+            if (fpsChart) {
+                const textColor = isDarkMode ? '#d4e6de' : '#1a3c34';
+                const bgColor = isDarkMode ? '#223a33' : '#ffffff';
+                [fpsChart, cpuChart, objectsChart, modeChart, cmabChart].forEach(chart => {
+                    chart.setOption({
+                        backgroundColor: bgColor,
+                        xAxis: { axisLabel: { color: textColor } },
+                        yAxis: { axisLabel: { color: textColor } },
+                        legend: { textStyle: { color: textColor } }
+                    });
+                });
+            }
+            showNotification(`${isDarkMode ? 'Dark' : 'Light'} mode activated`);
+        }
+
+        darkModeToggle.addEventListener('click', toggleDarkMode);
+
+        // Tutorial
+        function showTutorial() {
+            const tutorialModal = document.createElement('div');
+            tutorialModal.className = 'modal active';
+            tutorialModal.innerHTML = `
+                <div class="modal-content" style="max-width: 600px;">
+                    <div class="modal-header">
+                        <h2 class="modal-title">Tutorial: Video Processing Monitor</h2>
+                        <button class="close-btn">×</button>
+                    </div>
+                    <div class="modal-body" style="line-height: 1.6; font-size: 0.95rem;">
+                        <h3>Welcome!</h3>
+                        <p>Monitor and control video processing on your device and server.</p>
+                        <h4>Features:</h4>
+                        <ul>
+                            <li><strong>Statistics:</strong> Real-time metrics</li>
+                            <li><strong>Charts:</strong> Performance trends</li>
+                            <li><strong>Video:</strong> Live camera feed</li>
+                            <li><strong>Settings:</strong> Adjust parameters</li>
+                            <li><strong>Logs:</strong> Operation history</li>
+                        </ul>
+                        <h4>Usage:</h4>
+                        <ol>
+                            <li>Use bottom buttons to navigate</li>
+                            <li>Check stats, charts, video, settings, and logs</li>
+                        </ol>
+                        <h4>Shortcuts:</h4>
+                        <ul>
+                            <li><strong>Alt + 1-5:</strong> Open panels</li>
+                            <li><strong>Alt + D:</strong> Toggle theme</li>
+                            <li><strong>Esc:</strong> Close modal</li>
+                        </ul>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(tutorialModal);
+            tutorialModal.querySelector('.close-btn').addEventListener('click', () => document.body.removeChild(tutorialModal));
+            tutorialModal.addEventListener('click', (e) => {
+                if (e.target === tutorialModal) document.body.removeChild(tutorialModal);
+            });
+        }
+
+        const tutorialButton = document.createElement('button');
+        tutorialButton.className = 'control-btn';
+        tutorialButton.innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg> Tutorial`;
+        tutorialButton.addEventListener('click', showTutorial);
+        document.querySelector('.system-status').appendChild(tutorialButton);
+
+        // Logs
+        function showLogs() {
+            const logsModal = document.createElement('div');
+            logsModal.className = 'modal active';
+            logsModal.innerHTML = `
+                <div class="modal-content" style="max-width: 700px;">
+                    <div class="modal-header">
+                        <h2 class="modal-title">System Logs</h2>
+                        <button class="close-btn">×</button>
+                    </div>
+                    <div class="modal-body" style="max-height: 400px; overflow-y: auto; font-family: monospace; font-size: 0.9rem;"></div>
+                </div>
+            `;
+            document.body.appendChild(logsModal);
+            const logsBody = logsModal.querySelector('.modal-body');
+            fetchLogs(logsBody);
+            logsModal.querySelector('.close-btn').addEventListener('click', () => document.body.removeChild(logsModal));
+            logsModal.addEventListener('click', (e) => {
+                if (e.target === logsModal) document.body.removeChild(logsModal);
+            });
+        }
+
+        function fetchLogs(logsBody) {
+            fetch('/logs')
+                .then(response => response.json())
+                .then(data => {
+                    logsBody.textContent = data.logs.join('\n');
+                    logsBody.scrollTop = logsBody.scrollHeight;
+                })
+                .catch(error => {
+                    console.error('Error fetching logs:', error);
+                    logsBody.textContent = 'Failed to load logs';
+                });
+        }
+
+        setInterval(() => {
+            const logsModal = document.querySelector('.modal.active .modal-title');
+            if (logsModal?.textContent === 'System Logs') fetchLogs(document.querySelector('.modal.active .modal-body'));
+        }, 1000);
+
+        // Notifications
+        function showNotification(message) {
+            const notification = document.createElement('div');
+            notification.textContent = message;
+            notification.style.cssText = `
+                position: fixed; bottom: 20px; right: 20px; background-color: rgba(45, 134, 89, 0.9);
+                color: white; padding: 12px 20px; border-radius: 4px; box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+                z-index: 1000; font-weight: 500; transform: translateY(100px); opacity: 0; transition: all 0.3s ease;
+            `;
+            document.body.appendChild(notification);
+            requestAnimationFrame(() => {
+                notification.style.transform = 'translateY(0)';
+                notification.style.opacity = '1';
+            });
+            setTimeout(() => {
+                notification.style.transform = 'translateY(100px)';
+                notification.style.opacity = '0';
+                setTimeout(() => document.body.removeChild(notification), 300);
+            }, 3000);
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeAllModals();
+            if (e.altKey) {
+                switch (e.key) {
+                    case '1': openModal(statsModal); break;
+                    case '2': openModal(chartsModal); if (!fpsChart) initCharts(); addSaveButtonsToCharts(); break;
+                    case '3': openModal(videoModal); startVideoStream(); break;
+                    case '4': openModal(settingsModal); loadSettings(); break;
+                    case '5': showLogs(); break;
+                    case 'd': case 'D': toggleDarkMode(); break;
+                }
+            }
+        });
+
+        // Initialization
+        document.addEventListener('DOMContentLoaded', () => {
+            setInterval(fetchStats, 1000);
+            showTutorial();
+            showNotification('System initialized');
+        });
+
+        window.addEventListener('resize', () => {
+            if (chartsModal.classList.contains('active') && fpsChart) {
+                fpsChart.resize();
+                cpuChart.resize();
+                objectsChart.resize();
+                modeChart.resize();
+                cmabChart.resize();
+            }
+        });
+    </script>
+</body>
+</html>
