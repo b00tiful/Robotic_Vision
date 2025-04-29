@@ -49,7 +49,7 @@ def index():
 @app.route('/stats')
 def get_stats():
     return jsonify({
-        "fps": fps + 7,
+        "fps": fps,
         "cpu": cpu_load,
         "objects": objects_detected,
         "mode": processing_mode,
@@ -64,7 +64,7 @@ def get_stats():
 def update_stats():
     global fps, cpu_load, objects_detected, processing_mode, uptime, cmab_q_values
     data = request.json
-    fps = data.get("fps", fps + 7)
+    fps = data.get("fps", fps)
     cpu_load = data.get("cpu", cpu_load)
     objects_detected = data.get("objects", objects_detected)
     processing_mode = data.get("mode", processing_mode)
@@ -72,7 +72,7 @@ def update_stats():
     if "cmab_q_values" in data:
         cmab_q_values = data["cmab_q_values"]
     uptime += 1
-    add_log(f"Stats updated - FPS: {fps + 7}, CPU: {cpu_load}%, Objects: {objects_detected}, Mode: {processing_mode}, CMAB: {cmab_q_values}")
+    add_log(f"Stats updated - FPS: {fps}, CPU: {cpu_load}%, Objects: {objects_detected}, Mode: {processing_mode}, CMAB: {cmab_q_values}")
     return jsonify({"status": "updated"})
 
 @app.route('/update_frame', methods=['POST'])
