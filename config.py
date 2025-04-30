@@ -1,8 +1,8 @@
 
 NETWORK = {
-    "server_ip": "192.168.0.192",
+    "server_ip": "127.0.0.1",
     "server_port": 5555,
-    "web_ip": "192.168.0.192",
+    "web_ip": "127.0.0.1",
     "web_port": 5556,
 }
 
