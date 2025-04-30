@@ -10,6 +10,7 @@ Requirements
     Web browser for accessing the interface
 
 Setup
+
     1. Clone repository
         git clone <repository-url>
         cd <repository-directory>
